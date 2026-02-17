@@ -167,7 +167,95 @@ cp /tmp/n2t/nand2tetris/projects/5/*.tst grader_test_files/project05/
 cp /tmp/n2t/nand2tetris/projects/5/*.cmp grader_test_files/project05/
 ```
 
-### Step 6: Run
+
+### Step 6: Check Everything in place
+
+```bash
+bash setup.sh
+```
+You should see:
+
+```
+═══════════════════════════════════════════════
+  nand2tetris Auto-Grader — Setup & Verify
+═══════════════════════════════════════════════
+
+── Docker ──────────────────────────────────────
+  ✅  Docker found: Docker version 28.1.1, build 4eba377
+  ✅  Docker daemon is running
+  ✅  Docker Compose available
+
+── Configuration (.env) ─────────────────────────
+  ✅  .env file exists
+  ✅  MOODLE_URL is set (http...sity)
+  ✅  MOODLE_TOKEN is set (8617...178a)
+  ✅  TELEGRAM_TOKEN is set (8578...nRUY)
+  ✅  GEMINI_API_KEY is set (AIza...VPnY)
+  ✅  ALLOWED_USER_IDS is set (1344...6447)
+  ✅  DEFAULT_GROUP = Group_G
+
+── Template (.env.example) ──────────────────────
+  ✅  .env.example exists (for other TAs)
+
+── nand2tetris Tools ────────────────────────────
+  ✅  Tools directory exists: tools/nand2tetris/tools
+  ✅  HardwareSimulator.sh found and executable
+  ✅  CPUEmulator.sh found and executable
+  ✅  VMEmulator.sh found and executable
+  ✅  TextComparer.sh found and executable
+  ✅  builtInChips directory found (35 chips)
+  ✅  Java binaries found (7 jars, 48 classes)
+
+── Test Files ─────────────────────────────────────
+./setup.sh: line 146: declare: -A: invalid option
+declare: usage: declare [-afFirtx] [-p] [name[=value] ...]
+  ✅  grader_test_files/ directory exists
+  ✅  project01: 15 .tst, 15 .cmp (expected >= 3)
+  ✅  project02: 6 .tst, 6 .cmp (expected >= 3)
+  ✅  project03: 8 .tst, 8 .cmp (expected >= 3)
+  ✅  project04: 3 .tst, 2 .cmp (expected >= 3)
+  ⚠️   project04/Fill.tst has no matching .cmp file
+  ✅  project05: 6 .tst, 6 .cmp (expected >= 3)
+
+  Total: 38 .tst files, 37 .cmp files
+
+── Application Files ────────────────────────────
+  ✅  bot.py (syntax OK)
+  ✅  config.py (syntax OK)
+  ✅  moodle_client.py (syntax OK)
+  ✅  grading_engine.py (syntax OK)
+  ✅  ai_report.py (syntax OK)
+  ✅  database.py (syntax OK)
+
+── Docker Files ───────────────────────────────────
+  ✅  Dockerfile exists
+  ✅  docker-compose.yml exists
+  ✅  requirements.txt exists
+  ✅  .dockerignore exists
+  ✅  .gitignore includes .env (credentials protected)
+
+── Data Directory ─────────────────────────────────
+  ℹ️   data/ directory will be created on first run
+
+── Documentation ────────────────────────────────────
+  ✅  README.md exists
+
+═══════════════════════════════════════════════
+  SUMMARY
+═══════════════════════════════════════════════
+
+  ✅  No errors, 1 warning(s)
+
+  You can run the bot, but check the warnings above.
+
+  Run with:
+    docker compose up --build
+
+═══════════════════════════════════════════════
+```
+
+
+### Step 7: Run
 
 ```bash
 docker compose up --build
