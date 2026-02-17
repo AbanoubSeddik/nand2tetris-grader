@@ -1,0 +1,12 @@
+services:
+  bot:
+    build: .
+    container_name: n2t-grader
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./grader_test_files:/app/grader_test_files:ro
+    environment:
+      - PYTHONUNBUFFERED=1
