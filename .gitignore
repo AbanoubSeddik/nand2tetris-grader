@@ -9,3 +9,4 @@ tmp_*/
 .venv
 venv/
 .DS_Store
+.vscode/

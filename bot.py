@@ -255,13 +255,38 @@ async def _start_grading(q, ctx):
         await q.edit_message_text(f"Error: {e}")
         return ConversationHandler.END
 
+    # Resume behavior: avoid re-grading users already submitted in
+    # previous local sessions for the same assignment.
+    previously_submitted_ids = \
+        await db.get_submitted_user_ids_for_assignment(aid)
+    skipped_local = 0
+    if previously_submitted_ids:
+        before = len(subs)
+        subs = [s for s in subs if s.user_id not in previously_submitted_ids]
+        skipped_local = before - len(subs)
+        if skipped_local > 0:
+            log.info(
+                f"Filtered {skipped_local} already-submitted students "
+                f"from local session history (assignment {aid})")
+
     if not subs:
-        await q.edit_message_text(
-            f"All submissions in{group_label} are already graded!")
+        if skipped_local > 0:
+            await q.edit_message_text(
+                f"No pending submissions in{group_label}.\n"
+                f"Skipped {skipped_local} already submitted student(s) "
+                f"from previous local sessions.")
+        else:
+            await q.edit_message_text(
+                f"All submissions in{group_label} are already graded!")
         return ConversationHandler.END
 
+    resume_note = (
+        f"Resumed: skipped {skipped_local} already submitted student(s)\n"
+        if skipped_local > 0 else
+        "")
     status = await q.message.reply_text(
         f"{len(subs)} ungraded submissions{group_label}\n"
+        f"{resume_note}"
         f"HW{proj['number']}: {proj['name']}\n"
         f"Starting batch grading...\n\n"
         f"Grading 0/{len(subs)}...")
@@ -278,31 +303,35 @@ async def _start_grading(q, ctx):
         except Exception:
             pass
 
-        zip_file = next(
-            (f for f in sub.files if f.filename.lower().endswith('.zip')),
+        archive_file = next(
+            (f for f in sub.files if f.filename.lower().endswith(
+                ('.zip', '.rar'))),
             None)
 
-        if not zip_file:
+        if not archive_file:
             rid = await db.save_result(
                 session_id, sub.user_id, sub.full_name,
-                0, [], "No .zip file in submission.")
+                0, [], "No supported archive (.zip/.rar) in submission.")
             queue.append({
                 "rid": rid, "name": sub.full_name, "uid": sub.user_id,
                 "score": 0,
-                "report": "No .zip file found in submission.",
+                "report": "No supported archive (.zip/.rar) found in "
+                          "submission.",
                 "header": f"❌ {sub.full_name}\n"
                           f"Score: 0/{total_pts} (0%)"})
             continue
 
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+        suffix = ".rar" if archive_file.filename.lower().endswith(
+            ".rar") else ".zip"
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
         try:
-            await moodle.download_file(zip_file, tmp.name)
+            await moodle.download_file(archive_file, tmp.name)
             tmp.close()
 
             gr = await engine.grade_student(
                 tmp.name, sub.full_name, sub.user_id,
                 project_num=ctx.user_data.get("project_num"),
-                zip_filename=zip_file.filename)
+                zip_filename=archive_file.filename)
 
             report = await ai.generate_report(gr)
             header = ai.format_header(gr)

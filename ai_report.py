@@ -26,6 +26,8 @@ Rules:
 - If partial credit given, mention tests passed
 - If FILE NAMING issues exist (wrong chip filenames or wrong zip name), \
   mention them clearly but kindly and state the correct name
+- If SUBMISSION PACKAGING issues exist (example: zip-inside-zip), \
+  mention them clearly and how to fix
 - If early components fail: warn about cascading dependencies
 - DO NOT include numeric score (system adds it)
 - NO markdown. Plain text, emoji sparingly
@@ -114,7 +116,15 @@ async def generate_report(result: GradingResult) -> str:
             nl.append(f"  - {m.issue}")
         naming = "\n" + "\n".join(nl)
 
-    cascade_w = [w for w in result.warnings if not w.startswith("Naming:")]
+    packaging_w = [w for w in result.warnings if w.startswith("Packaging:")]
+    packaging = ""
+    if packaging_w:
+        packaging = "\nSubmission packaging issues:\n" + \
+            "\n".join(f"  - {w}" for w in packaging_w)
+
+    cascade_w = [w for w in result.warnings
+                 if not w.startswith("Naming:")
+                 and not w.startswith("Packaging:")]
     cascade = ""
     if cascade_w:
         cascade = "\nCascade warnings:\n" + \
@@ -126,7 +136,7 @@ async def generate_report(result: GradingResult) -> str:
         f"({result.percentage}%)\n\n"
         f"Results:\n{chr(10).join(chip_lines)}\n\n"
         f"Errors:\n{chr(10).join(errors) if errors else 'All passed!'}\n"
-        f"{naming}\n{cascade}")
+        f"{naming}\n{packaging}\n{cascade}")
 
     system = SYSTEM_PROMPT_TEMPLATE.format(hw_name=hw, project_name=pname)
 
@@ -159,6 +169,17 @@ def _template(result):
     # Zip naming
     if result.zip_naming and not result.zip_naming.is_correct:
         lines.append(f"NOTE on zip naming: {result.zip_naming.issue}\n")
+
+    # Submission packaging
+    packaging = [w for w in result.warnings if w.startswith("Packaging:")]
+    if packaging:
+        lines.append("NOTE on submission packaging:")
+        for w in packaging:
+            if w.startswith("Packaging: "):
+                lines.append(f"  {w[11:]}")
+            else:
+                lines.append(f"  {w}")
+        lines.append("")
 
     # File naming
     fixable = [m for m in result.naming_issues
@@ -220,7 +241,8 @@ def _template(result):
                     lines.append(f"    Hint: {h}")
 
         cascade = [w for w in result.warnings
-                   if not w.startswith("Naming:")]
+                   if not w.startswith("Naming:")
+                   and not w.startswith("Packaging:")]
         if cascade:
             lines.append("")
             for w in cascade:

@@ -266,27 +266,133 @@ def _rename_for_sim(matched, sandbox, ext):
 
 # ── Helpers ──────────────────────────────────────────────────
 
-def _extract_zip(zip_path, file_ext):
-    tmp = tempfile.mkdtemp(prefix="n2t_")
-    try:
-        with zipfile.ZipFile(zip_path, 'r') as zf:
-            zf.extractall(tmp)
-    except zipfile.BadZipFile:
-        return tmp, {}
+def _is_supported_archive(name):
+    return name.lower().endswith((".zip", ".rar"))
 
+
+def _extract_archive_once(archive_path, out_dir):
+    os.makedirs(out_dir, exist_ok=True)
+    lower = archive_path.lower()
+
+    if lower.endswith(".zip"):
+        try:
+            with zipfile.ZipFile(archive_path, 'r') as zf:
+                zf.extractall(out_dir)
+            return True, ""
+        except zipfile.BadZipFile:
+            return False, "invalid zip file"
+
+    if lower.endswith(".rar"):
+        cmds = []
+        if shutil.which("unrar"):
+            cmds.append(["unrar", "x", "-o+", "-idq", archive_path, out_dir])
+        if shutil.which("unar"):
+            cmds.append(["unar", "-quiet", "-output-directory",
+                         out_dir, archive_path])
+        if shutil.which("bsdtar"):
+            cmds.append(["bsdtar", "-xf", archive_path, "-C", out_dir])
+
+        if not cmds:
+            return False, "no rar extractor available (need unrar/unar/bsdtar)"
+
+        errors = []
+        for cmd in cmds:
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=30)
+                if proc.returncode == 0:
+                    return True, ""
+                err = (proc.stderr or proc.stdout or
+                       f"exit code {proc.returncode}").strip()
+                errors.append(f"{cmd[0]}: {err[:120]}")
+            except Exception as e:
+                errors.append(f"{cmd[0]}: {str(e)[:120]}")
+        return False, "; ".join(errors)[:240]
+
+    return False, "unsupported archive type"
+
+
+def _scan_submission_files(base_dir, file_ext):
     found = {}
-    for root, dirs, files in os.walk(tmp):
+    nested_archives = []
+    for root, dirs, files in os.walk(base_dir):
         dirs[:] = [d for d in dirs if not d.startswith(('.', '__'))]
         for f in files:
             if f.startswith('.') or f.startswith('__'):
                 continue
+            full = os.path.join(root, f)
+            if _is_supported_archive(f):
+                nested_archives.append(full)
             name = f
             while name.lower().endswith(file_ext):
                 name = name[:-len(file_ext)]
             if f.lower().endswith(file_ext) and name:
                 if name not in found:
-                    found[name] = os.path.join(root, f)
-    return tmp, found
+                    found[name] = full
+    return found, nested_archives
+
+
+def _extract_zip(zip_path, file_ext, archive_label=""):
+    tmp = tempfile.mkdtemp(prefix="n2t_")
+    warnings = []
+    shown_name = archive_label or os.path.basename(zip_path)
+    ok, err = _extract_archive_once(zip_path, tmp)
+    if not ok:
+        warnings.append(
+            f"Packaging: Could not extract archive "
+            f"'{shown_name}' ({err}).")
+        return tmp, {}, warnings
+
+    found, nested_archives = _scan_submission_files(tmp, file_ext)
+    if found:
+        return tmp, found, warnings
+
+    # Try nested archives recursively (up to 2 levels inside outer archive).
+    max_depth = 2
+    seen = set()
+    queue = [(p, 1) for p in nested_archives]
+
+    while queue:
+        archive_path, depth = queue.pop(0)
+        real = os.path.realpath(archive_path)
+        if real in seen:
+            continue
+        seen.add(real)
+        if depth > max_depth:
+            continue
+
+        nested_out = os.path.join(
+            tmp, f"nested_d{depth}_{len(seen)}")
+        ok, err = _extract_archive_once(archive_path, nested_out)
+        if not ok:
+            warnings.append(
+                f"Packaging: Found nested archive "
+                f"'{os.path.basename(archive_path)}' but could not "
+                f"extract it ({err}).")
+            continue
+
+        nested_found, nested_more = _scan_submission_files(
+            nested_out, file_ext)
+        if nested_found:
+            warnings.append(
+                f"Packaging: Detected nested archive "
+                f"'{os.path.basename(archive_path)}' (depth {depth}). "
+                f"Extracted it automatically this time; "
+                f"please submit one archive with {file_ext} files directly.")
+            return tmp, nested_found, warnings
+
+        for more in nested_more:
+            queue.append((more, depth + 1))
+
+    if nested_archives:
+        warnings.append(
+            f"Packaging: Found nested archives but no {file_ext} files "
+            f"after extracting up to depth {max_depth}.")
+    return tmp, found, warnings
 
 
 def _check_builtin(path):
@@ -448,12 +554,14 @@ async def grade_student(zip_path, student_name, user_id,
     ext = project["file_ext"]
     deps = project.get("deps", {})
 
-    tmp, raw = _extract_zip(zip_path, ext)
+    tmp, raw, extract_warnings = _extract_zip(
+        zip_path, ext, zip_filename or os.path.basename(zip_path))
     try:
         result = GradingResult(
             student_name=student_name, user_id=user_id,
             project_num=project["number"],
             total_possible=project["total_points"])
+        result.warnings.extend(extract_warnings)
 
         # Check zip naming
         result.zip_naming = check_zip_naming(

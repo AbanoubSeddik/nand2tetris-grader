@@ -4,6 +4,7 @@ FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
+    libarchive-tools \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=java /opt/java/openjdk /opt/java/openjdk

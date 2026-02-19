@@ -226,6 +226,20 @@ for PY_FILE in bot.py config.py moodle_client.py grading_engine.py ai_report.py 
 done
 echo ""
 
+# ── 6b. Check archive extractors ────────────────────────────
+echo "── Archive Extractors ───────────────────────────"
+if command -v unrar >/dev/null 2>&1; then
+    ok "unrar found (RAR extraction supported)"
+elif command -v unar >/dev/null 2>&1; then
+    ok "unar found (RAR extraction supported)"
+elif command -v bsdtar >/dev/null 2>&1; then
+    ok "bsdtar found (RAR extraction supported)"
+else
+    warn "No RAR extractor found (unrar/unar/bsdtar)"
+    info "RAR submissions will fail to extract until one is installed"
+fi
+echo ""
+
 # ── 7. Check Docker files ───────────────────────────────────
 echo "── Docker Files ───────────────────────────────────"
 for DFILE in Dockerfile docker-compose.yml requirements.txt; do

@@ -432,6 +432,7 @@ nand2tetris-grader/
 | Gemini fails | Falls back to templates automatically |
 | Container exits | Run `docker compose logs` |
 | Java errors | `docker compose exec bot java -version` |
+| "no rar extractor available" | Rebuild image (`docker compose up --build`) or install `bsdtar`/`unrar`/`unar` |
 | Wrong project detected | Set `ACTIVE_PROJECT=N` in `.env` as fallback |
 
 ## For New TAs — Quick Checklist

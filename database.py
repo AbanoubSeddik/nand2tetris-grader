@@ -67,6 +67,20 @@ async def mark_skipped(result_id):
         await db.commit()
 
 
+async def get_submitted_user_ids_for_assignment(assign_id):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("""
+            SELECT DISTINCT r.user_id
+            FROM results r
+            JOIN sessions s ON s.id = r.session_id
+            WHERE s.assign_id = ?
+              AND r.status = 'submitted'
+              AND r.user_id IS NOT NULL
+        """, (assign_id,))
+        rows = await cur.fetchall()
+        return {row[0] for row in rows}
+
+
 async def get_session_summary(session_id):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row

@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -206,6 +207,9 @@ def validate_config():
         issues.append("GEMINI_API_KEY not set (will use template reports)")
     if not ALLOWED_USER_IDS:
         issues.append("ALLOWED_USER_IDS not set (bot open to everyone)")
+    if not any(shutil.which(cmd) for cmd in ("unrar", "unar", "bsdtar")):
+        issues.append("RAR extractor not found (install unrar/unar/bsdtar); "
+                      ".rar submissions cannot be opened")
     proj = get_project()
     if not proj["simulator_path"].exists():
         issues.append(f"{proj['simulator']} not found")
