@@ -337,12 +337,11 @@ If a student submits `homework1.zip` or `gates.zip`, the report will note:
 
 | Chip | Points |
 |------|--------|
-| HalfAdder | 0.80 |
-| FullAdder | 0.80 |
-| Add16 | 0.80 |
-| Inc16 | 0.80 |
-| ALU | 3.00 |
-| ALU-nostat | 3.80 |
+| HalfAdder | 1.50 |
+| FullAdder | 1.50 |
+| Add16 | 1.50 |
+| Inc16 | 1.50 |
+| ALU | 4.00 |
 
 ### Project 3: Memory (10 pts)
 
