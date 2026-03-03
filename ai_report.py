@@ -253,8 +253,8 @@ def _template(result):
         lines.append(f"Extra files (not needed): "
                      f"{', '.join(result.extra_files)}\n")
 
-    lines.append("Questions? Don't hesitate to ask!\n")
-    lines.append("-- Your CH-234 Teaching Team")
+    lines.append("Questions? Don't hesitate to reach out!\n")
+    lines.append("-- A.Razkalla --")
     return '\n'.join(lines)
 
 

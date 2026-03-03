@@ -275,12 +275,14 @@ Open Telegram → find your bot → send:
 
 - `/test` — verify Moodle connection
 - `/grade` — start grading
+- `/regrade` — re-run grading and overwrite existing grades
 
 ## Telegram Commands
 
 | Command   | Description                    |
 |-----------|--------------------------------|
 | `/grade`  | Start grading an assignment    |
+| `/regrade`| Regrade assignment (overwrite) |
 | `/test`   | Test Moodle connection         |
 | `/status` | Current grading session status |
 | `/cancel` | Cancel current grading flow    |

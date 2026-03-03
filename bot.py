@@ -53,6 +53,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"nand2tetris Auto-Grader\n"
         f"Constructor University -- CH-234{g}\n\n"
         f"/grade -- Grade an assignment\n"
+        f"/regrade -- Regrade an assignment (overwrite existing grades)\n"
         f"/test -- Test Moodle connection\n"
         f"/status -- Session status\n"
         f"/cancel -- Stop current flow")
@@ -74,6 +75,28 @@ async def cmd_test(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 @auth
 async def cmd_grade(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ctx.user_data["regrade_mode"] = False
+    msg = await update.message.reply_text("Fetching courses...")
+    try:
+        courses = await moodle.get_courses()
+    except Exception as e:
+        await msg.edit_text(f"Error: {e}")
+        return ConversationHandler.END
+    if not courses:
+        await msg.edit_text("No courses found.")
+        return ConversationHandler.END
+    ctx.user_data["courses"] = {c["id"]: c for c in courses}
+    buttons = [[InlineKeyboardButton(
+        f"{c.get('shortname','')} -- {c['fullname'][:40]}",
+        callback_data=f"c_{c['id']}")] for c in courses[:15]]
+    await msg.edit_text("Select a course:",
+                        reply_markup=InlineKeyboardMarkup(buttons))
+    return PICK_COURSE
+
+
+@auth
+async def cmd_regrade(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ctx.user_data["regrade_mode"] = True
     msg = await update.message.reply_text("Fetching courses...")
     try:
         courses = await moodle.get_courses()
@@ -239,38 +262,51 @@ async def _start_grading(q, ctx):
     assign = ctx.user_data["assign"]
     group = ctx.user_data.get("group")
     group_member_ids = ctx.user_data.get("group_member_ids")
+    regrade_mode = ctx.user_data.get("regrade_mode", False)
     proj = get_project(ctx.user_data.get("project_num"))
     total_pts = proj["total_points"]
     ctx.user_data["total_pts"] = total_pts
 
     group_label = f" ({group.name})" if group else " (all students)"
 
-    await q.edit_message_text(
-        f"Fetching ungraded submissions for:\n"
-        f"{assign.name}{group_label}")
+    if regrade_mode:
+        await q.edit_message_text(
+            f"Fetching submissions for regrading:\n"
+            f"{assign.name}{group_label}")
+    else:
+        await q.edit_message_text(
+            f"Fetching ungraded submissions for:\n"
+            f"{assign.name}{group_label}")
 
     try:
-        subs = await moodle.get_ungraded(aid, group_member_ids)
+        if regrade_mode:
+            subs = await moodle.get_submissions(aid, group_member_ids)
+        else:
+            subs = await moodle.get_ungraded(aid, group_member_ids)
     except Exception as e:
         await q.edit_message_text(f"Error: {e}")
         return ConversationHandler.END
 
     # Resume behavior: avoid re-grading users already submitted in
     # previous local sessions for the same assignment.
-    previously_submitted_ids = \
-        await db.get_submitted_user_ids_for_assignment(aid)
     skipped_local = 0
-    if previously_submitted_ids:
-        before = len(subs)
-        subs = [s for s in subs if s.user_id not in previously_submitted_ids]
-        skipped_local = before - len(subs)
-        if skipped_local > 0:
-            log.info(
-                f"Filtered {skipped_local} already-submitted students "
-                f"from local session history (assignment {aid})")
+    if not regrade_mode:
+        previously_submitted_ids = \
+            await db.get_submitted_user_ids_for_assignment(aid)
+        if previously_submitted_ids:
+            before = len(subs)
+            subs = [s for s in subs if s.user_id not in previously_submitted_ids]
+            skipped_local = before - len(subs)
+            if skipped_local > 0:
+                log.info(
+                    f"Filtered {skipped_local} already-submitted students "
+                    f"from local session history (assignment {aid})")
 
     if not subs:
-        if skipped_local > 0:
+        if regrade_mode:
+            await q.edit_message_text(
+                f"No submitted archives found to regrade in{group_label}.")
+        elif skipped_local > 0:
             await q.edit_message_text(
                 f"No pending submissions in{group_label}.\n"
                 f"Skipped {skipped_local} already submitted student(s) "
@@ -284,9 +320,13 @@ async def _start_grading(q, ctx):
         f"Resumed: skipped {skipped_local} already submitted student(s)\n"
         if skipped_local > 0 else
         "")
+    mode_line = "Regrade mode: existing Moodle grades can be overwritten\n" \
+        if regrade_mode else ""
     status = await q.message.reply_text(
-        f"{len(subs)} ungraded submissions{group_label}\n"
+        f"{len(subs)} {'submitted' if regrade_mode else 'ungraded'} "
+        f"submissions{group_label}\n"
         f"{resume_note}"
+        f"{mode_line}"
         f"HW{proj['number']}: {proj['name']}\n"
         f"Starting batch grading...\n\n"
         f"Grading 0/{len(subs)}...")
@@ -527,7 +567,8 @@ async def type_grade(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     sid = ctx.user_data.get("session_id")
     if not sid:
-        await update.message.reply_text("No active session. Use /grade")
+        await update.message.reply_text(
+            "No active session. Use /grade or /regrade")
         return
     s = await db.get_session_summary(sid)
     total_pts = ctx.user_data.get("total_pts", TOTAL_POINTS)
@@ -543,7 +584,7 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Session paused. /grade to start new.")
+        "Session paused. Use /grade or /regrade to start new.")
     return ConversationHandler.END
 
 
@@ -551,6 +592,7 @@ async def post_init(app):
     await db.init_db()
     await app.bot.set_my_commands([
         BotCommand("grade", "Grade an assignment"),
+        BotCommand("regrade", "Regrade assignment and overwrite grades"),
         BotCommand("test", "Test Moodle connection"),
         BotCommand("status", "Session status"),
         BotCommand("cancel", "Cancel current flow"),
@@ -575,7 +617,10 @@ def main():
         .post_init(post_init).build()
 
     conv = ConversationHandler(
-        entry_points=[CommandHandler("grade", cmd_grade)],
+        entry_points=[
+            CommandHandler("grade", cmd_grade),
+            CommandHandler("regrade", cmd_regrade),
+        ],
         states={
             PICK_COURSE: [
                 CallbackQueryHandler(pick_course, pattern=r"^c_")],
