@@ -351,12 +351,12 @@ If a student submits `homework1.zip` or `gates.zip`, the report will note:
 |------|--------|
 | Bit | 1.00 |
 | Register | 1.00 |
-| RAM8 | 1.50 |
-| RAM64 | 1.50 |
-| RAM512 | 1.50 |
-| RAM4K | 1.50 |
+| RAM8 | 2.00 |
+| RAM64 | 1.00 |
+| RAM512 | 1.00 |
+| RAM4K | 1.00 |
 | RAM16K | 1.00 |
-| PC | 1.00 |
+| PC | 2.00 |
 
 ### Project 4: Machine Language (10 pts)
 
