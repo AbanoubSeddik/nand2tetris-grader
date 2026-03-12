@@ -115,6 +115,9 @@ PROJECTS = {
         "file_ext": ".asm",
         "test_dir": "project04",
         "zip_pattern": r"HW4_Assembly_\w+",
+        "test_name_map": {
+            "Fill": "FillAutomatic",
+        },
         "chips": [
             ("Mult", 5.00),
             ("Fill", 5.00),

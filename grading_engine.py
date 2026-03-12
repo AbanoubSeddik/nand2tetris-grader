@@ -421,9 +421,10 @@ def _has_work(path, ext):
         return False
 
 
-def _partial_credit(sandbox, chip, max_pts):
-    cmp_p = os.path.join(sandbox, f"{chip}.cmp")
-    out_p = os.path.join(sandbox, f"{chip}.out")
+def _partial_credit(sandbox, chip, max_pts, test_stem=None):
+    stem = test_stem or chip
+    cmp_p = os.path.join(sandbox, f"{stem}.cmp")
+    out_p = os.path.join(sandbox, f"{stem}.out")
     if not os.path.exists(cmp_p) or not os.path.exists(out_p):
         return 0, 0, 0, 0, "", ""
     try:
@@ -467,6 +468,8 @@ def _run_one(chip, matched, project):
     tp = project["test_path"]
     sim = str(project["simulator_path"])
     ext = project["file_ext"]
+    test_map = project.get("test_name_map", {})
+    test_stem = test_map.get(chip, chip)
 
     if chip not in matched:
         return ChipResult(chip, False, 0, mx, "missing", "Not submitted")
@@ -476,11 +479,11 @@ def _run_one(chip, matched, project):
                           "Uses BUILTIN (not allowed)")
 
     work = _has_work(matched[chip], ext)
-    tst = tp / f"{chip}.tst"
-    cmp = tp / f"{chip}.cmp"
+    tst = tp / f"{test_stem}.tst"
+    cmp = tp / f"{test_stem}.cmp"
     if not tst.exists():
         return ChipResult(chip, False, 0, mx, "internal",
-                          f"{chip}.tst not found")
+                          f"{test_stem}.tst not found")
 
     sb = tempfile.mkdtemp(prefix=f"c_{chip}_")
     try:
@@ -488,13 +491,14 @@ def _run_one(chip, matched, project):
         shutil.copy2(tst, sb)
         if cmp.exists():
             shutil.copy2(cmp, sb)
-        for x in tp.glob(f"{chip}*"):
-            d = os.path.join(sb, x.name)
-            if not os.path.exists(d):
-                shutil.copy2(x, sb)
+        for prefix in {chip, test_stem}:
+            for x in tp.glob(f"{prefix}*"):
+                d = os.path.join(sb, x.name)
+                if not os.path.exists(d):
+                    shutil.copy2(x, sb)
 
         r = subprocess.run(
-            [sim, os.path.join(sb, f"{chip}.tst")],
+            [sim, os.path.join(sb, f"{test_stem}.tst")],
             capture_output=True, text=True, timeout=60, cwd=sb)
         out = f"{r.stdout}\n{r.stderr}".strip()
 
@@ -507,7 +511,8 @@ def _run_one(chip, matched, project):
 
         m = re.search(r'[Cc]omparison failure at line (\d+)', out)
         if m:
-            p, ps, tt, fl, fe, fa = _partial_credit(sb, chip, mx)
+            p, ps, tt, fl, fe, fa = _partial_credit(
+                sb, chip, mx, test_stem=test_stem)
             return ChipResult(
                 chip, False, p, mx, "mismatch",
                 f"{ps}/{tt} tests passed (first fail line {fl})",
