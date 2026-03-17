@@ -254,7 +254,7 @@ def _template(result):
                      f"{', '.join(result.extra_files)}\n")
 
     lines.append("Questions? Don't hesitate to reach out!\n")
-    lines.append("-- Your DSCA Team --")
+    lines.append("-- A.Razkalla --")
     return '\n'.join(lines)
 
 

@@ -261,6 +261,45 @@ declare: usage: declare [-afFirtx] [-p] [name[=value] ...]
 docker compose up --build
 ```
 
+## Local Grading Without Moodle
+
+If a student sends you a submission by email, you can grade it directly from the
+terminal and paste the feedback into Moodle yourself.
+
+Run:
+
+```bash
+python3 grade_local.py /path/to/submission.zip --student-name "First Last" --project 4
+```
+
+It also accepts a single source file or a folder:
+
+```bash
+python3 grade_local.py /path/to/Fill.asm --student-name "First Last" --project 4
+python3 grade_local.py /path/to/hw4-folder --student-name "First Last" --project 4
+```
+
+To save the generated feedback text to a file:
+
+```bash
+python3 grade_local.py /path/to/submission.zip \
+  --student-name "First Last" \
+  --project 4 \
+  --report-file /tmp/hw4-feedback.txt
+```
+
+What it prints:
+
+- Score summary
+- Full feedback report
+- Naming/packaging notes when relevant
+
+Requirements:
+
+- `tools/nand2tetris/tools/` must be set up
+- `grader_test_files/projectXX/` must exist for that homework
+- `GEMINI_API_KEY` is optional; without it the tool uses the built-in template report
+
 You should see:
 
 ```
@@ -370,8 +409,8 @@ If a student submits `homework1.zip` or `gates.zip`, the report will note:
 | Chip | Points |
 |------|--------|
 | Memory | 3.00 |
-| CPU | 4.00 |
-| Computer | 3.00 |
+| CPU | 5.00 |
+| Computer | 2.00 |
 
 ### Projects 6–12: Not Yet Supported
 

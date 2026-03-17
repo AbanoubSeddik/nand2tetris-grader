@@ -132,8 +132,8 @@ PROJECTS = {
         "zip_pattern": r"HW5_Computer_\w+",
         "chips": [
             ("Memory",   3.00),
-            ("CPU",      4.00),
-            ("Computer", 3.00),
+            ("CPU",      5.00),
+            ("Computer", 2.00),
         ],
         "deps": {
             "Memory": [], "CPU": [],
