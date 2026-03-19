@@ -152,6 +152,7 @@ PROJECT_EXPECTED[project05]=3
 
 TOTAL_TST=0
 TOTAL_CMP=0
+TOTAL_HACK=0
 
 if [ -d "grader_test_files" ]; then
     ok "grader_test_files/ directory exists"
@@ -163,10 +164,19 @@ if [ -d "grader_test_files" ]; then
         if [ -d "$DIR" ]; then
             TST=$(ls "$DIR"/*.tst 2>/dev/null | wc -l | tr -d ' ')
             CMP=$(ls "$DIR"/*.cmp 2>/dev/null | wc -l | tr -d ' ')
+            HACK=$(ls "$DIR"/*.hack 2>/dev/null | wc -l | tr -d ' ')
             TOTAL_TST=$((TOTAL_TST + TST))
             TOTAL_CMP=$((TOTAL_CMP + CMP))
+            TOTAL_HACK=$((TOTAL_HACK + HACK))
 
-            if [ "$TST" -ge "$EXPECTED" ]; then
+            if [ "$PROJ_DIR" = "project05" ]; then
+                if [ "$TST" -ge "$EXPECTED" ] && [ "$HACK" -ge 3 ]; then
+                    ok "$PROJ_DIR: $TST .tst, $CMP .cmp, $HACK .hack (expected >= $EXPECTED)"
+                else
+                    warn "$PROJ_DIR: $TST .tst, $CMP .cmp, $HACK .hack"
+                    info "Project 5 also needs Add.hack, Max.hack, and Rect.hack"
+                fi
+            elif [ "$TST" -ge "$EXPECTED" ]; then
                 ok "$PROJ_DIR: $TST .tst, $CMP .cmp (expected >= $EXPECTED)"
             else
                 warn "$PROJ_DIR: only $TST/$EXPECTED .tst files"
@@ -204,7 +214,7 @@ else
 fi
 
 echo ""
-echo "  Total: $TOTAL_TST .tst files, $TOTAL_CMP .cmp files"
+echo "  Total: $TOTAL_TST .tst files, $TOTAL_CMP .cmp files, $TOTAL_HACK .hack files"
 echo ""
 
 # ── 6. Check Python files ───────────────────────────────────

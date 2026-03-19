@@ -130,6 +130,11 @@ PROJECTS = {
         "file_ext": ".hdl",
         "test_dir": "project05",
         "zip_pattern": r"HW5_Computer_\w+",
+        "test_name_map": {
+            "Memory": "MemoryAutomatic",
+            "CPU": ["CPU", "CPU-external"],
+            "Computer": ["ComputerAdd", "ComputerMax", "ComputerRect"],
+        },
         "chips": [
             ("Memory",   3.00),
             ("CPU",      5.00),

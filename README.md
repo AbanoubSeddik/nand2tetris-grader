@@ -165,6 +165,7 @@ cp /tmp/n2t/nand2tetris/projects/4/fill/*.cmp grader_test_files/project04/
 mkdir -p grader_test_files/project05
 cp /tmp/n2t/nand2tetris/projects/5/*.tst grader_test_files/project05/
 cp /tmp/n2t/nand2tetris/projects/5/*.cmp grader_test_files/project05/
+cp /tmp/n2t/nand2tetris/projects/5/*.hack grader_test_files/project05/
 ```
 
 
@@ -215,7 +216,7 @@ declare: usage: declare [-afFirtx] [-p] [name[=value] ...]
   ✅  project03: 8 .tst, 8 .cmp (expected >= 3)
   ✅  project04: 3 .tst, 2 .cmp (expected >= 3)
   ⚠️   project04/Fill.tst has no matching .cmp file
-  ✅  project05: 6 .tst, 6 .cmp (expected >= 3)
+  ✅  project05: 6 .tst, 6 .cmp, 3 .hack (expected >= 3)
 
   Total: 38 .tst files, 37 .cmp files
 

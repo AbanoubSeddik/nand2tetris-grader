@@ -264,6 +264,15 @@ def _rename_for_sim(matched, sandbox, ext):
         shutil.copy2(source, os.path.join(sandbox, f"{expected}{ext}"))
 
 
+def _copy_test_assets(test_path, sandbox):
+    for asset in test_path.iterdir():
+        if not asset.is_file():
+            continue
+        dest = os.path.join(sandbox, asset.name)
+        if not os.path.exists(dest):
+            shutil.copy2(asset, dest)
+
+
 # ── Helpers ──────────────────────────────────────────────────
 
 def _is_supported_archive(name):
@@ -448,6 +457,13 @@ def _partial_credit(sandbox, chip, max_pts, test_stem=None):
     return pts, passed, total, fl, fe, fa
 
 
+def _cmp_row_count(cmp_path):
+    try:
+        return max(0, len(Path(cmp_path).read_text().splitlines()) - 1)
+    except Exception:
+        return 0
+
+
 def _clean_err(raw):
     lines = []
     for l in raw.split('\n'):
@@ -462,40 +478,30 @@ def _clean_err(raw):
 
 # ── Test Runner ──────────────────────────────────────────────
 
-def _run_one(chip, matched, project):
+def _run_test(chip, matched, project, test_stem, max_pts):
     pts = project["chip_points"]
-    mx = pts.get(chip, 1.0)
     tp = project["test_path"]
     sim = str(project["simulator_path"])
     ext = project["file_ext"]
-    test_map = project.get("test_name_map", {})
-    test_stem = test_map.get(chip, chip)
 
     if chip not in matched:
-        return ChipResult(chip, False, 0, mx, "missing", "Not submitted")
+        return ChipResult(chip, False, 0, max_pts, "missing", "Not submitted")
 
     if ext == ".hdl" and _check_builtin(matched[chip]):
-        return ChipResult(chip, False, 0, mx, "builtin",
+        return ChipResult(chip, False, 0, max_pts, "builtin",
                           "Uses BUILTIN (not allowed)")
 
     work = _has_work(matched[chip], ext)
     tst = tp / f"{test_stem}.tst"
     cmp = tp / f"{test_stem}.cmp"
     if not tst.exists():
-        return ChipResult(chip, False, 0, mx, "internal",
+        return ChipResult(chip, False, 0, max_pts, "internal",
                           f"{test_stem}.tst not found")
 
     sb = tempfile.mkdtemp(prefix=f"c_{chip}_")
     try:
         _rename_for_sim(matched, sb, ext)
-        shutil.copy2(tst, sb)
-        if cmp.exists():
-            shutil.copy2(cmp, sb)
-        for prefix in {chip, test_stem}:
-            for x in tp.glob(f"{prefix}*"):
-                d = os.path.join(sb, x.name)
-                if not os.path.exists(d):
-                    shutil.copy2(x, sb)
+        _copy_test_assets(tp, sb)
 
         r = subprocess.run(
             [sim, os.path.join(sb, f"{test_stem}.tst")],
@@ -504,34 +510,91 @@ def _run_one(chip, matched, project):
 
         if "Comparison ended successfully" in out or \
            "End of script - Comparison ended successfully" in out:
-            tt = max(0, len(cmp.read_text().splitlines()) - 1) \
-                if cmp.exists() else 0
-            return ChipResult(chip, True, mx, mx, "pass",
+            tt = _cmp_row_count(cmp)
+            return ChipResult(chip, True, max_pts, max_pts, "pass",
                               total_tests=tt, passed_tests=tt)
 
         m = re.search(r'[Cc]omparison failure at line (\d+)', out)
         if m:
             p, ps, tt, fl, fe, fa = _partial_credit(
-                sb, chip, mx, test_stem=test_stem)
+                sb, chip, max_pts, test_stem=test_stem)
             return ChipResult(
-                chip, False, p, mx, "mismatch",
+                chip, False, p, max_pts, "mismatch",
                 f"{ps}/{tt} tests passed (first fail line {fl})",
                 fl, fe, fa, tt, ps)
 
         ce = _clean_err(out)
         if work:
-            return ChipResult(chip, False, round(mx * 0.15, 2), mx,
+            return ChipResult(chip, False, round(max_pts * 0.15, 2), max_pts,
                               "syntax", f"Syntax error (effort credit): {ce}")
-        return ChipResult(chip, False, 0, mx, "syntax", ce)
+        return ChipResult(chip, False, 0, max_pts, "syntax", ce)
 
     except subprocess.TimeoutExpired:
-        ep = round(mx * 0.1, 2) if work else 0
-        return ChipResult(chip, False, ep, mx, "timeout",
+        ep = round(max_pts * 0.1, 2) if work else 0
+        return ChipResult(chip, False, ep, max_pts, "timeout",
                           "Timed out (possible loop)")
     except Exception as e:
-        return ChipResult(chip, False, 0, mx, "internal", str(e)[:150])
+        return ChipResult(chip, False, 0, max_pts, "internal", str(e)[:150])
     finally:
         shutil.rmtree(sb, ignore_errors=True)
+
+
+def _merge_test_results(chip, stems, results, max_pts):
+    total_points = round(sum(r.points for r in results), 2)
+    total_tests = sum(r.total_tests for r in results)
+    passed_tests = sum(r.passed_tests for r in results)
+
+    if all(r.passed for r in results):
+        return ChipResult(chip, True, total_points, max_pts, "pass",
+                          total_tests=total_tests, passed_tests=passed_tests)
+
+    first_fail = next(r for r in results if not r.passed)
+    failed_labels = [stem for stem, result in zip(stems, results)
+                     if not result.passed]
+
+    if total_tests:
+        msg = f"{passed_tests}/{total_tests} tests passed"
+        if failed_labels:
+            msg += f" ({', '.join(failed_labels)} failed)"
+        err_type = "mismatch"
+    else:
+        msg = "; ".join(
+            f"{stem}: {result.error_msg}"
+            for stem, result in zip(stems, results)
+            if not result.passed
+        )[:200]
+        priority = ("internal", "timeout", "syntax", "builtin", "missing")
+        err_type = first_fail.error_type
+        for kind in priority:
+            if any(result.error_type == kind for result in results):
+                err_type = kind
+                break
+
+    return ChipResult(
+        chip, False, total_points, max_pts, err_type, msg,
+        first_fail.fail_line, first_fail.expected, first_fail.actual,
+        total_tests, passed_tests)
+
+
+def _run_one(chip, matched, project):
+    pts = project["chip_points"]
+    mx = pts.get(chip, 1.0)
+    tp = project["test_path"]
+    test_map = project.get("test_name_map", {})
+    stems = test_map.get(chip, chip)
+    if isinstance(stems, str):
+        stems = [stems]
+
+    if len(stems) == 1:
+        return _run_test(chip, matched, project, stems[0], mx)
+
+    weights = [_cmp_row_count(tp / f"{stem}.cmp") or 1 for stem in stems]
+    total_weight = sum(weights) or len(stems)
+    results = [
+        _run_test(chip, matched, project, stem, mx * weight / total_weight)
+        for stem, weight in zip(stems, weights)
+    ]
+    return _merge_test_results(chip, stems, results, mx)
 
 
 def _cascades(results, deps):

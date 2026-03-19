@@ -4,7 +4,6 @@ __pycache__/
 *.pyc
 data/
 tools/
-grader_test_files/
 tmp_*/
 .venv
 venv/
